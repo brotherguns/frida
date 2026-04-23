@@ -16,7 +16,6 @@ jobs:
 
       - name: Select Xcode
         run: |
-          # Pick the latest available Xcode and expose clang to the build system
           sudo xcode-select --switch /Applications/Xcode.app
           sudo xcodebuild -license accept
           xcode-select --print-path
@@ -43,14 +42,15 @@ jobs:
         id: sdk-cache
         with:
           path: deps
-          key: frida-sdk-apple-arm64-20260311
+          key: frida-sdk-ios-arm64-20260311
 
       - name: Build the SDK from Source
         if: steps.sdk-cache.outputs.cache-hit != 'true'
         run: |
-          # No pre-built SDK on CDN for this toolchain version — build it ourselves.
-          # This only runs on a cache miss, subsequent runs pull from cache.
-          python3 releng/deps.py build --bundle=sdk --host=apple-arm64
+          # deps.py uses Frida's own machine spec format: ios-arm64, not apple-arm64 or arm64-apple-ios
+          # ios-arm64 routes to env_apple.py which finds clang via Xcode
+          # apple-arm64 is the macOS build machine spec and routes to env_generic which fails
+          python3 releng/deps.py build --bundle=sdk --host=ios-arm64
 
       - name: Cook the Binary
         run: |
