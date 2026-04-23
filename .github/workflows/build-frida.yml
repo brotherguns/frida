@@ -6,6 +6,7 @@ on:
 jobs:
   build:
     runs-on: macos-latest # Apple SDKs only live here
+    timeout-minutes: 120 # SDK build from source takes a while
 
     steps:
       - name: Checkout the Heat
@@ -29,10 +30,23 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo -n "${{ secrets.PROVISION_BASE64 }}" | base64 -D > ~/Library/MobileDevice/Provisioning\ Profiles/signed.mobileprovision
 
+      - name: Cache the SDK
+        uses: actions/cache@v4
+        id: sdk-cache
+        with:
+          path: deps
+          key: frida-sdk-apple-arm64-20260311
+
+      - name: Build the SDK from Source
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          # No pre-built SDK on CDN for this toolchain version — build it ourselves.
+          # This only runs on a cache miss, subsequent runs pull from cache.
+          python3 releng/deps.py build --bundle=sdk --host=apple-arm64
+
       - name: Cook the Binary
         run: |
-          # arm64e-apple-ios has no pre-built SDK on Frida's CDN.
-          # arm64-apple-ios does, and the gadget runs fine on iPhone 17 Pro.
+          # SDK tarball in ./deps gets picked up automatically by configure
           ./configure --host=arm64-apple-ios
 
           # This is a long cook. Let the stove sizzle.
@@ -48,7 +62,6 @@ jobs:
           fi
           echo "[+] SIGNING WITH IDENTITY: $IDENTITY"
 
-          # Find the gadget dylib wherever the build system put it
           TARGET_PATH=$(find build -name "frida-gadget.dylib" | head -n 1)
 
           if [ -z "$TARGET_PATH" ]; then
