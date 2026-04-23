@@ -14,6 +14,14 @@ jobs:
         with:
           submodules: recursive # Don't leave the subprojects in the cold
 
+      - name: Select Xcode
+        run: |
+          # Pick the latest available Xcode and expose clang to the build system
+          sudo xcode-select --switch /Applications/Xcode.app
+          sudo xcodebuild -license accept
+          xcode-select --print-path
+          clang --version
+
       - name: Setup the Lab
         run: |
           brew install meson ninja pkg-config node
