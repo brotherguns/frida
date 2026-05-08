@@ -1,4 +1,4 @@
-name: Build and Sign Frida iOS (The Gospel)
+name: Build Frida iOS
 on:
   workflow_dispatch:
   push:
@@ -24,7 +24,7 @@ jobs:
       - name: Setup the Lab
         run: |
           brew install meson ninja pkg-config node
-          pip3 install --break-system-packages colorama prompt-toolkit pygments websockets
+          pip3 install --break-system-packages colorama prompt-toolkit pygments websockets setuptools
 
       - name: Cache the SDK
         uses: actions/cache@v4
@@ -36,19 +36,10 @@ jobs:
       - name: Build the SDK from Source
         if: steps.sdk-cache.outputs.cache-hit != 'true'
         run: |
-          # ios-arm64 routes to env_apple.py which finds clang via Xcode
           python3 releng/deps.py build --bundle=sdk --host=ios-arm64
 
       - name: Cook the Binary
         run: |
-          # FIX 1: ios-arm64 to match the SDK host above — arm64-apple-ios routed to
-          # the wrong env module and failed to find the SDK in ./deps.
-          #
-          # FIX 2: Explicitly enable gadget — meson.options defaults to 'auto' which
-          # can silently skip the gadget if cross-build detection is ambiguous.
-          #
-          # FIX 3: assets=embedded for jailed mode — no writable system prefix exists
-          # on a stock device so all runtime assets must be bundled inside the dylib.
           ./configure --host=ios-arm64 \
             -- \
             -Dgadget=enabled \
