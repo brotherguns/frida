@@ -1,18 +1,18 @@
 name: Build and Sign Frida iOS (The Gospel)
 on:
-  workflow_dispatch: # Manual trigger for when the block is hot
+  workflow_dispatch:
   push:
     branches: [ main ]
 jobs:
   build:
-    runs-on: macos-latest # Apple SDKs only live here
-    timeout-minutes: 120 # SDK build from source takes a while
+    runs-on: macos-latest
+    timeout-minutes: 120
 
     steps:
       - name: Checkout the Heat
         uses: actions/checkout@v4
         with:
-          submodules: recursive # Don't leave the subprojects in the cold
+          submodules: recursive
 
       - name: Select Xcode
         run: |
@@ -26,17 +26,6 @@ jobs:
           brew install meson ninja pkg-config node
           pip3 install --break-system-packages colorama prompt-toolkit pygments websockets
 
-      - name: Import the Ice (P12 Certificate)
-        uses: apple-actions/import-codesign-certs@v2
-        with:
-          p12-file-base64: ${{ secrets.P12_BASE64 }}
-          p12-password: ${{ secrets.P12_PASSWORD }}
-
-      - name: Install the Hall Pass (Provisioning Profile)
-        run: |
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo -n "${{ secrets.PROVISION_BASE64 }}" | base64 -D > ~/Library/MobileDevice/Provisioning\ Profiles/signed.mobileprovision
-
       - name: Cache the SDK
         uses: actions/cache@v4
         id: sdk-cache
@@ -47,45 +36,28 @@ jobs:
       - name: Build the SDK from Source
         if: steps.sdk-cache.outputs.cache-hit != 'true'
         run: |
-          # deps.py uses Frida's own machine spec format: ios-arm64, not apple-arm64 or arm64-apple-ios
           # ios-arm64 routes to env_apple.py which finds clang via Xcode
-          # apple-arm64 is the macOS build machine spec and routes to env_generic which fails
           python3 releng/deps.py build --bundle=sdk --host=ios-arm64
 
       - name: Cook the Binary
         run: |
-          # SDK tarball in ./deps gets picked up automatically by configure
-          ./configure --host=arm64-apple-ios
+          # FIX 1: ios-arm64 to match the SDK host above — arm64-apple-ios routed to
+          # the wrong env module and failed to find the SDK in ./deps.
+          #
+          # FIX 2: Explicitly enable gadget — meson.options defaults to 'auto' which
+          # can silently skip the gadget if cross-build detection is ambiguous.
+          #
+          # FIX 3: assets=embedded for jailed mode — no writable system prefix exists
+          # on a stock device so all runtime assets must be bundled inside the dylib.
+          ./configure --host=ios-arm64 \
+            -- \
+            -Dgadget=enabled \
+            -Dfrida-core:assets=embedded
 
-          # This is a long cook. Let the stove sizzle.
           make
-
-      - name: The Surgical Sign
-        run: |
-          IDENTITY=$(security find-identity -v -p codesigning | grep "Apple Development" | head -n 1 | awk -F '"' '{print $2}')
-
-          if [ -z "$IDENTITY" ]; then
-            echo "[-] COULD NOT FIND THE ICE. CHECK YOUR P12_BASE64."
-            exit 1
-          fi
-          echo "[+] SIGNING WITH IDENTITY: $IDENTITY"
-
-          TARGET_PATH=$(find build -name "frida-gadget.dylib" | head -n 1)
-
-          if [ -z "$TARGET_PATH" ]; then
-            echo "[-] BUILD FAILED. NO DYLIB FOUND. BUILD TREE:"
-            find build -name "*.dylib" 2>/dev/null || echo "No dylibs found at all."
-            exit 1
-          fi
-
-          echo "[+] FOUND GADGET AT: $TARGET_PATH"
-          codesign -f -s "$IDENTITY" "$TARGET_PATH"
-          echo "[+] GADGET SIGNED AND READY FOR THE STREETS."
-
-          echo "GADGET_PATH=$TARGET_PATH" >> $GITHUB_ENV
 
       - name: Stash the Product
         uses: actions/upload-artifact@v4
         with:
-          name: frida-ios-signed-gadget
+          name: frida-ios-gadget-unsigned
           path: ${{ env.GADGET_PATH }}
