@@ -31,7 +31,11 @@ jobs:
 
       - name: Build gadget
         run: |
-          make -C build/frida-ios-arm64 gadget
+          echo "=== build dirs present ==="
+          ls -la build/
+          builddir=$(find build -maxdepth 1 -type d -name 'frida-*' | head -1)
+          echo "using build dir: $builddir"
+          make -C "$builddir" gadget
 
       - name: Verify artifact
         run: |
@@ -52,5 +56,4 @@ jobs:
         with:
           name: FridaGadget-17.8.1-ios-arm64-v8disabled
           path: |
-            build/frida-ios-arm64/frida-core/lib/gadget/FridaGadget.dylib
             build/*/frida-core/lib/gadget/FridaGadget.dylib
