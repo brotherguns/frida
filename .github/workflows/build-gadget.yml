@@ -24,9 +24,9 @@ jobs:
             --enable-gadget \
             -- -Dfrida-gum:v8=disabled
 
-      - name: Build gadget (meson_make self-configures build dir)
+      - name: Build (default target compiles all incl. gadget)
         run: |
-          make gadget
+          make
 
       - name: Verify artifact
         run: |
