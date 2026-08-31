@@ -1,0 +1,56 @@
+name: build-gadget-17.8.1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [gadget-17.8.1]
+
+jobs:
+  build-ios-gadget:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout (full, incl. submodules)
+        uses: actions/checkout@v4
+        with:
+          ref: gadget-17.8.1
+          persist-credentials: false
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Ensure submodules (releng / gum / core)
+        run: |
+          python3 tools/ensure-submodules.py frida-gum frida-core
+          git submodule update --init --recursive
+
+      - name: Configure (ios-arm64, gadget, v8 disabled)
+        run: |
+          ./configure \
+            --host=ios-arm64 \
+            --enable-gadget \
+            -- -Dfrida-gum:v8=disabled
+
+      - name: Build gadget
+        run: |
+          make -C build/frida-ios-arm64 gadget
+
+      - name: Verify artifact
+        run: |
+          artifact=$(find build -name FridaGadget.dylib | head -1)
+          echo "artifact: $artifact"
+          file "$artifact"
+          size=$(stat -f%z "$artifact" 2>/dev/null || stat -c%s "$artifact")
+          echo "size: $size bytes"
+          # confirm v8 is NOT linked (quickjs build has no v8)
+          if otool -L "$artifact" | grep -iq v8; then
+            echo "WARNING: v8 appears linked"
+          else
+            echo "OK: no v8 dependency detected (quickjs config)"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FridaGadget-17.8.1-ios-arm64-v8disabled
+          path: |
+            build/frida-ios-arm64/frida-core/lib/gadget/FridaGadget.dylib
+            build/*/frida-core/lib/gadget/FridaGadget.dylib
