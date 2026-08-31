@@ -17,10 +17,6 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Roll public SDK (ios-arm64) — no creds needed, hits public CDN
-        run: |
-          python3 releng/deps.py roll sdk ios-arm64
-
       - name: Configure (ios-arm64, gadget, v8 disabled)
         run: |
           ./configure \
@@ -28,9 +24,9 @@ jobs:
             --enable-gadget \
             -- -Dfrida-gum:v8=disabled
 
-      - name: Build gadget
+      - name: Build gadget (meson_make self-configures build dir)
         run: |
-          make -C build/frida-ios-arm64 gadget
+          make gadget
 
       - name: Verify artifact
         run: |
