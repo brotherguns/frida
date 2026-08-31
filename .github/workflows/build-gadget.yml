@@ -17,10 +17,9 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Ensure submodules (releng / gum / core)
+      - name: Roll public SDK (ios-arm64) — no creds needed, hits public CDN
         run: |
-          python3 tools/ensure-submodules.py frida-gum frida-core
-          git submodule update --init --recursive
+          python3 releng/deps.py roll sdk ios-arm64
 
       - name: Configure (ios-arm64, gadget, v8 disabled)
         run: |
@@ -31,10 +30,6 @@ jobs:
 
       - name: Build gadget
         run: |
-          echo "=== build/ ==="
-          ls -la build/
-          echo "=== build/frida-ios-arm64/ (if present) ==="
-          ls -la build/frida-ios-arm64/ 2>&1 | head -10
           make -C build/frida-ios-arm64 gadget
 
       - name: Verify artifact
@@ -44,8 +39,7 @@ jobs:
           file "$artifact"
           size=$(stat -f%z "$artifact" 2>/dev/null || stat -c%s "$artifact")
           echo "size: $size bytes"
-          # confirm v8 is NOT linked (quickjs build has no v8)
-          if otool -L "$artifact" | grep -iq v8; then
+          if otool -L "$artifact" 2>/dev/null | grep -iq v8; then
             echo "WARNING: v8 appears linked"
           else
             echo "OK: no v8 dependency detected (quickjs config)"
@@ -56,4 +50,5 @@ jobs:
         with:
           name: FridaGadget-17.8.1-ios-arm64-v8disabled
           path: |
+            build/frida-ios-arm64/frida-core/lib/gadget/FridaGadget.dylib
             build/*/frida-core/lib/gadget/FridaGadget.dylib
