@@ -31,11 +31,11 @@ jobs:
 
       - name: Build gadget
         run: |
-          echo "=== build dirs present ==="
+          echo "=== build/ ==="
           ls -la build/
-          builddir=$(find build -maxdepth 1 -type d -name 'frida-*' | head -1)
-          echo "using build dir: $builddir"
-          make -C "$builddir" gadget
+          echo "=== build/frida-ios-arm64/ (if present) ==="
+          ls -la build/frida-ios-arm64/ 2>&1 | head -10
+          make -C build/frida-ios-arm64 gadget
 
       - name: Verify artifact
         run: |
