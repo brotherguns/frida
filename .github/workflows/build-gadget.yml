@@ -31,14 +31,19 @@ jobs:
           export IOS_CERTID=-
           make
 
-      - name: Verify artifact
+      - name: Stage + verify artifact
         run: |
-          artifact=$(find build -name FridaGadget.dylib | head -1)
+          dist="$GITHUB_WORKSPACE/dist"
+          mkdir -p "$dist"
+          # on-disk meson output is lowercase frida-gadget.dylib; rename to FridaGadget.dylib
+          artifact=$(find build -iname frida-gadget.dylib | head -1)
           echo "artifact: $artifact"
-          file "$artifact"
-          size=$(stat -f%z "$artifact" 2>/dev/null || stat -c%s "$artifact")
+          test -n "$artifact" || { echo "gadget dylib not found"; exit 1; }
+          cp "$artifact" "$dist/FridaGadget.dylib"
+          file "$dist/FridaGadget.dylib"
+          size=$(stat -f%z "$dist/FridaGadget.dylib" 2>/dev/null || stat -c%s "$dist/FridaGadget.dylib")
           echo "size: $size bytes"
-          if otool -L "$artifact" 2>/dev/null | grep -iq v8; then
+          if otool -L "$dist/FridaGadget.dylib" 2>/dev/null | grep -iqE 'v8\.so|v8\.dylib'; then
             echo "WARNING: v8 appears linked"
           else
             echo "OK: no v8 dependency detected (quickjs config)"
@@ -48,6 +53,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FridaGadget-17.8.1-ios-arm64-v8disabled
-          path: |
-            build/frida-ios-arm64/frida-core/lib/gadget/FridaGadget.dylib
-            build/*/frida-core/lib/gadget/FridaGadget.dylib
+          path: dist/FridaGadget.dylib
